@@ -27,12 +27,15 @@ public class Main {
         while (op!=0)
         {
             System.out.println("""
-        1.- Listar libro
-        2.- Insertar libro
+            
+            BIBLIOTECA
+        ----------------------------------------------------
+        1.- Listar los libros
+        2.- Insertar un libro
         3.- Insertar varios libros
-        3.- Listar los libros existentes con precio mayor a X
-        4.- Actualizar precio libros
-        5.- Eliminar libro
+        4.- Actualizar información de un libro
+        5.- Buscador de libros
+        6.- Eliminar un libro
         0.- Cerrar programa
             """);
 
@@ -46,10 +49,9 @@ public class Main {
                     case 1: listaLibros(); break;
                     case 2: insertaLibro(); break;
                     case 3: insertaLibros(); break;
-                    case 4: listaLibrosPrecio(); break;
-                    case 5: actualizaLibro(); break;
-                    case 6: buscaLibros(); break;
-                    case 7: eliminaLibro();
+                    case 4: actualizaLibro(); break;
+                    case 5: buscaLibros(); break;
+                    case 6: eliminaLibro();
                 }
             }
             else
@@ -70,11 +72,10 @@ public class Main {
             for (Document libro : libros) {
                 System.out.println(libro.toJson());
             }
+            System.out.println("");
         }
         catch (MongoException e)
-        {
-            e.printStackTrace();
-        }
+        { e.printStackTrace(); }
     }
 
     private static void insertaLibro()
@@ -83,13 +84,15 @@ public class Main {
         {
             MongoDatabase mdb = mc.getDatabase("lucas");
             MongoCollection<Document> mco = mdb.getCollection("libros");
+
             System.out.print("Dime el id de tu nuevo libro: ");
             long id = scanner.nextInt();
+
             Document filtro = new Document("_id", id);
             while (mco.countDocuments(filtro)>0)
             {
                 System.out.println("El id introducido ya está en uso");
-                System.out.print("Dime el id otro id: ");
+                System.out.print("\nDime otro id: ");
                 id = scanner.nextInt();
                 filtro = new Document("_id", id);
             }
@@ -104,9 +107,7 @@ public class Main {
             mco.insertOne(documento);
         }
         catch (MongoException e)
-        {
-            e.printStackTrace();
-        }
+        { e.printStackTrace(); }
     }
 
     private static void insertaLibros()
@@ -115,21 +116,6 @@ public class Main {
         int num = scanner.nextInt();
         for (int i = 0; i<num; i++)
             insertaLibro();
-    }
-
-    private static void listaLibrosPrecio()
-    {
-        try(MongoClient mc = new MongoClient("localhost",27017))
-        {
-            MongoDatabase mdb = mc.getDatabase("lucas");
-            MongoCollection<Document> mco = mdb.getCollection("libros");
-            System.out.println("ID: ");
-            int id = scanner.nextInt();
-        }
-        catch (MongoException e)
-        {
-            e.printStackTrace();
-        }
     }
 
     private static void actualizaLibro()
@@ -141,24 +127,29 @@ public class Main {
 
             System.out.print("Dime el id del libro a modificar: ");
             long id = scanner.nextInt();
-            Document filtro = new Document("_id", id);
+            Document documento = new Document("_id", id);
 
-            System.out.println("Ahora los datos a actualizar");
+            if (mco.countDocuments(documento)>0)
+            {
+                Document filtro = new Document("_id", id);
 
-            Libro libro = pideDatos(id);
+                System.out.println("Ahora los datos a actualizar");
 
-            Document docMod = new Document("_id",libro.get_id())
-                    .append("titulo",libro.getTitulo())
-                    .append("autor",libro.getAutor())
-                    .append("precio",libro.getPrecio())
-                    .append("genero",libro.getGenero());
+                Libro libro = pideDatos(id);
 
-            mco.updateOne(filtro,docMod);
+                Document docMod = new Document("titulo",libro.getTitulo())
+                        .append("autor",libro.getAutor())
+                        .append("precio",libro.getPrecio())
+                        .append("genero",libro.getGenero());
+
+                mco.replaceOne(filtro,docMod);
+            }
+            else
+                System.out.println("No hay libros registrados con ese id");
+
         }
         catch (MongoException e)
-        {
-            e.printStackTrace();
-        }
+        { e.printStackTrace(); }
     }
 
     private static void buscaLibros()
@@ -168,11 +159,71 @@ public class Main {
             MongoDatabase mdb = mc.getDatabase("lucas");
             MongoCollection<Document> mco = mdb.getCollection("libros");
 
+            int opcion;
+            Document documento = null;
+            System.out.println("""
+                    
+                    ¿Qué criterio quieres seguir para buscarlo/s?
+                    1.- Su id
+                    2.- Su título
+                    3.- Su autor
+                    4.- Los más caros a X€
+                    5.- Los más baratos a X€
+                    """);
+
+            opcion = scanner.nextInt();
+            if ((opcion>0)&&(opcion<6))
+            {
+                switch (opcion)
+                {
+                    case 1:
+                        System.out.print("Dime el id de tu libro: ");
+                        long id = scanner.nextInt();
+                        documento = new Document("_id", id);
+                        break;
+
+                    case 2:
+                        System.out.print("Dime el titulo de tu libro: ");
+                        String titulo = scanner2.nextLine();
+                        documento = new Document("titulo", titulo);
+                        break;
+
+                    case 3:
+                        System.out.print("Dime el autor de los libros que buscas: ");
+                        String autor = scanner2.nextLine();
+                        documento = new Document("autor", autor);
+                        break;
+
+                    case 4:
+                        System.out.print("¿Cuál es tu presupuesto mínimo? ");
+                        int precioMin = scanner.nextInt();
+                        documento = new Document("precio", new Document("$gte", precioMin));
+                        break;
+
+                    case 5: System.out.print("¿Cuál es tu presupuesto máximo? ");
+                        int precioMax = scanner.nextInt();
+                        documento = new Document("precio", new Document("$lte", precioMax));
+                        break;
+                }
+            }
+            else
+                System.out.println("Número no válido, por favor, ponga un número entre el 1 y el 5");
+
+            if (mco.countDocuments(documento)>0)
+            {
+                FindIterable<Document> libros = mco.find(documento);
+
+                for (Document libro : libros) {
+                    System.out.println(libro.toJson());
+                }
+                System.out.println("");
+            }
+            else
+                System.out.println("No hay libros registrados con ese parámetro");
+
         }
         catch (MongoException e)
-        {
-            e.printStackTrace();
-        }
+        { e.printStackTrace(); }
     }
 
     private static void eliminaLibro()
@@ -188,39 +239,39 @@ public class Main {
             mco.deleteOne(new Document("_id", id));
         }
         catch (MongoException e)
-        {
-            e.printStackTrace();
-        }
+        { e.printStackTrace(); }
     }
 
     private static Libro pideDatos(Long id)
     {
-        System.out.print("Dime el título: ");
+        System.out.print("\nDime el título: ");
         String titulo = scanner2.nextLine();
 
-        System.out.print("Dime el autor: ");
+        System.out.print("\nDime el autor: ");
         String autor = scanner2.nextLine();
 
-        System.out.print("Dime el precio: ");
+        System.out.print("\nDime el precio: ");
         Double precio = scanner.nextDouble();
 
-        System.out.print("¿Cuántos géneros tiene?");
+        System.out.print("\n¿Cuántos géneros tiene? ");
         int num = scanner.nextInt();
-        List<String> generos = new ArrayList<String>() {
-        };
+        List<String> generos = new ArrayList<String>() {};
         String genero;
 
-        System.out.println("Dime un género: ");
-        genero = scanner2.next();
-        generos.add(genero);
-
-        if(num>1)
+        if(num>=1)
         {
-            for (int i = 1; i < num; i++)
+            System.out.println("\nDime un género: ");
+            genero = scanner2.nextLine();
+            generos.add(genero);
+
+            if(num>1)
             {
-                System.out.print("Dime un género: ");
-                genero = scanner2.next();
-                generos.add(genero);
+                for (int i = 1; i < num; i++)
+                {
+                    System.out.print("\nDime un género: ");
+                    genero = scanner2.nextLine();
+                    generos.add(genero);
+                }
             }
         }
         Libro libro = new Libro(id,titulo,autor,precio,generos);
